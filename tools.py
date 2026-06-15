@@ -133,8 +133,59 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
 
     Before writing code, fill in the Tool 2 section of planning.md.
     """
-    # Replace this with your implementation
-    return ""
+    item_summary = (
+        f"- Title: {new_item.get('title')}\n"
+        f"- Category: {new_item.get('category')}\n"
+        f"- Colors: {', '.join(new_item.get('colors', []))}\n"
+        f"- Style tags: {', '.join(new_item.get('style_tags', []))}\n"
+        f"- Condition: {new_item.get('condition')}\n"
+        f"- Price: {new_item.get('price')}\n"
+        f"- Platform: {new_item.get('platform')}"
+    )
+
+    items = wardrobe.get("items", [])
+
+    if not items:
+        prompt = (
+            "You are a personal stylist. A user is considering buying this "
+            "thrifted item:\n\n"
+            f"{item_summary}\n\n"
+            "They don't have a wardrobe on file yet. Give general styling advice: "
+            "what types of bottoms, shoes, and layers pair well with this item, "
+            "and what overall vibe it suits. Keep it concise and practical."
+        )
+    else:
+        wardrobe_lines = []
+        for w in items:
+            colors = ", ".join(w.get("colors", []))
+            tags = ", ".join(w.get("style_tags", []))
+            notes = w.get("notes", "")
+            wardrobe_lines.append(
+                f"- {w.get('name')} ({w.get('category')}) — "
+                f"colors: {colors}; style: {tags}; notes: {notes}"
+            )
+        wardrobe_text = "\n".join(wardrobe_lines)
+        prompt = (
+            "You are a personal stylist. A user is considering buying this "
+            "thrifted item:\n\n"
+            f"{item_summary}\n\n"
+            "Here is the user's current wardrobe:\n\n"
+            f"{wardrobe_text}\n\n"
+            "Suggest 1-2 specific, complete outfit combinations that pair the new "
+            "item with named pieces from their wardrobe. Refer to the wardrobe "
+            "items by name. Keep it concise and practical."
+        )
+
+    try:
+        client = _get_groq_client()
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Could not generate outfit suggestion. Please try again."
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -166,5 +217,30 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
 
     Before writing code, fill in the Tool 3 section of planning.md.
     """
-    # Replace this with your implementation
-    return ""
+    if not outfit.strip():
+        return "Cannot generate a fit card without an outfit suggestion."
+
+    prompt = (
+        "Write a casual, shareable OOTD caption (Instagram/TikTok style) for a "
+        "thrifted find and the outfit it's styled in.\n\n"
+        f"Item name: {new_item.get('title')}\n"
+        f"Price: {new_item.get('price')}\n"
+        f"Platform: {new_item.get('platform')}\n\n"
+        f"Outfit:\n{outfit}\n\n"
+        "Guidelines:\n"
+        "- 2 to 4 sentences, like a real person's post (not a product description).\n"
+        "- Mention the item name, price, and platform naturally, once each.\n"
+        "- Capture the outfit vibe in specific terms.\n"
+        "- Keep the tone casual and authentic."
+    )
+
+    try:
+        client = _get_groq_client()
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0.9,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Could not generate a fit card. Please try again."
