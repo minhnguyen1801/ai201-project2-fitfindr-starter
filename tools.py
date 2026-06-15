@@ -69,8 +69,41 @@ def search_listings(
 
     Before writing code, fill in the Tool 1 section of planning.md.
     """
-    # Replace this with your implementation
-    return []
+    listings = load_listings()
+    keywords = description.lower().split()
+    size_filter = size.lower() if size is not None else None
+
+    results = []
+    for listing in listings:
+        # Price filter (inclusive).
+        if max_price is not None and listing["price"] > max_price:
+            continue
+
+        # Size filter (case-insensitive substring match).
+        if size_filter is not None and size_filter not in listing["size"].lower():
+            continue
+
+        # Weighted keyword overlap scoring.
+        title = listing["title"].lower()
+        tags = [tag.lower() for tag in listing["style_tags"]]
+        desc = listing["description"].lower()
+
+        score = 0
+        for kw in keywords:
+            if kw in title:
+                score += 3
+            if any(kw in tag for tag in tags):
+                score += 2
+            if kw in desc:
+                score += 1
+
+        if score == 0:
+            continue
+
+        results.append((score, listing))
+
+    results.sort(key=lambda pair: pair[0], reverse=True)
+    return [listing for _, listing in results]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
