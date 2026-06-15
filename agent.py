@@ -92,9 +92,78 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     Before writing code, complete the Planning Loop and State Management sections
     of planning.md — your implementation should match what you described there.
     """
-    # TODO: implement the planning loop
+    # Planning loop implementation
+    import re
+
     session = _new_session(query, wardrobe)
-    session["error"] = "Planning loop not yet implemented."
+
+    # Step 1 — Parse the query for description, size, and max_price
+    q = query
+
+    parsed = {"description": "", "size": None, "max_price": None}
+
+    # Size patterns: size M, in size M, sz M, size: M, sz: M
+    size_pattern = re.compile(r"\b(?:in\s+)?(?:size|sz)[:]?\s*([A-Za-z0-9/+-]+)\b", re.IGNORECASE)
+    size_match = size_pattern.search(q)
+    if size_match:
+        parsed["size"] = size_match.group(1).strip()
+        # remove the matched size text from query for cleaner description
+        q = q[: size_match.start()] + q[size_match.end() :]
+
+    # Price patterns: under $30, $30, 30 dollars, under 30
+    price = None
+    # under X or under $X
+    m = re.search(r"\bunder\s*\$?\s*(\d+(?:\.\d+)?)\b", q, re.IGNORECASE)
+    if m:
+        price = float(m.group(1))
+        q = q[: m.start()] + q[m.end() :]
+    else:
+        # $X
+        m = re.search(r"\$\s*(\d+(?:\.\d+)?)", q)
+        if m:
+            price = float(m.group(1))
+            q = q[: m.start()] + q[m.end() :]
+        else:
+            # X dollars or X usd
+            m = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:dollars|usd)\b", q, re.IGNORECASE)
+            if m:
+                price = float(m.group(1))
+                q = q[: m.start()] + q[m.end() :]
+
+    parsed["max_price"] = price
+
+    # Remove common filler words and punctuation to form the description
+    # Words to strip as whole words
+    fillers = r"\b(looking for|looking|look for|i'm|i am|im|a|for|under|in|please|want|to buy|buy)\b"
+    q = re.sub(fillers, " ", q, flags=re.IGNORECASE)
+    # Remove leftover currency symbols and punctuation
+    q = re.sub(r"[\$,:]", " ", q)
+    # Collapse whitespace and trim
+    description = re.sub(r"\s+", " ", q).strip()
+    parsed["description"] = description
+
+    session["parsed"] = parsed
+
+    # Step 2 — Call search_listings
+    results = search_listings(parsed["description"], parsed["size"], parsed["max_price"])
+    session["search_results"] = results
+
+    if not results:
+        session["error"] = (
+            f"No listings found for '{parsed['description']}'. Try a broader description, a different size, or a higher price limit."
+        )
+        return session
+
+    # Non-empty results: select the top item
+    session["selected_item"] = results[0]
+
+    # Step 3 — suggest_outfit
+    session["outfit_suggestion"] = suggest_outfit(session["selected_item"], session["wardrobe"])
+
+    # Step 4 — create_fit_card
+    session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"])
+
+    # Step 5 — return session
     return session
 
 
